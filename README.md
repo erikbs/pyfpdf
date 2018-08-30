@@ -23,21 +23,25 @@ Features:
 Installation Instructions:
 --------------------------
 
-To get the latest development version you can download the source code running:
+To get the latest development version of this fork you can download the source code running:
 
 ```
-   git clone https://github.com/reingart/pyfpdf.git
+   git clone https://github.com/erikbs/pyfpdf.git
    cd pyfpdf
    python setup.py install
 ```
 
-You can also install PyFPDF from PyPI, with easyinstall or from Windows 
+You can also install the original PyFPDF through PyPI, with easyinstall or from Windows 
 installers. For example, using pip:
 ```
    pip install fpdf
 ```
 
-**Note:** the [Python Imaging Library](http://www.pythonware.com/products/pil/) 
+**Note:** the PyPI version is based on an older version of [the repo from which I forked this](https://github.com/reingart/pyfpdf). See reingart’s repo for the latest development version of the original.
+
+Prerequisites:
+--------------
+The [Python Imaging Library](http://www.pythonware.com/products/pil/) 
 (PIL) is needed for GIF support. PNG and JPG support is built-in and doesn't 
 require any external dependency. For Python 3, 
 [Pillow - The friendly PIL fork](https://github.com/python-pillow/Pillow) is 
@@ -55,4 +59,3 @@ Documentation:
 For further information, see the project site:
 https://github.com/reingart/pyfpdf or the old Google Code project page
 https://code.google.com/p/pyfpdf/.
-
