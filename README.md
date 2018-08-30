@@ -1,29 +1,22 @@
-pyfpdf: FPDF for Python
-=======================
+Slightly modified version of [pyfpdf](https://github.com/reingart/pyfpdf) (FPDF
+for Python) v. 1.7.2 (30 Aug 2018) that supports a few features I needed in a
+private project, most importantly the ability to add images without having to
+use temporary files. This fork will not be maintained and I set the version
+number to 1.7.2m to avoid confusion with the one that is actively developed.
 
-PyFPDF is a library for PDF document generation under Python, ported from PHP
-(see [FPDF][1]: "Free"-PDF, a well-known PDFlib-extension replacement with many
-examples, scripts and derivatives).
+Why not just submit a pull request? There is already a major rewrite, v. 2.0.0,
+but my project relies on v. 1.7.2. In addition, pull requests to 1.7.2 have not
+been reviewed in several months.
 
-Compared with other PDF libraries, PyFPDF is simple, small and versatile, with
-advanced capabilities, and is easy to learn, extend and maintain.
+Differences:
+------------
 
-  [1]: http://www.fpdf.org/
+* 1.7.2 supports reading from files or http(s):// URLs. 1.7.2m also supports data URIs and in-memory streams (like io.BytesIO).
+* 1.7.2 implements GIF support by conversion to PNG using a temporary file. 1.7.2m uses io.BytesIO to convert files in-memory instead.
+* 1.7.2 supports PNG, GIF (through PIL) and JPEG image files. PIL also provides TIFF/JPEG2000 support, but files in those formats will be interpreted as mislabeled GIFs. 1.7.2m knows these formats, files are converted to PNG right away instead of being passed to the JPEG parser first.
 
-Features:
----------
-
- * Python 2.5 to 3.4 support
- * Unicode (UTF-8) TrueType font subset embedding
- * Barcode I2of5 and code39, QR code coming soon ...
- * PNG, GIF and JPG support (including transparency and alpha channel)
- * Templates with a visual designer & basic html2pdf 
- * Exceptions support, other minor fixes, improvements and PEP8 code cleanups
- 
 Installation Instructions:
 --------------------------
-
-To get the latest development version of this fork you can download the source code running:
 
 ```
    git clone https://github.com/erikbs/pyfpdf.git
@@ -31,31 +24,13 @@ To get the latest development version of this fork you can download the source c
    python setup.py install
 ```
 
-You can also install the original PyFPDF through PyPI, with easyinstall or from Windows 
-installers. For example, using pip:
-```
-   pip install fpdf
-```
-
-**Note:** the PyPI version is based on an older version of [the repo from which I forked this](https://github.com/reingart/pyfpdf). See reingart’s repo for the latest development version of the original.
-
 Prerequisites:
 --------------
 The [Python Imaging Library](http://www.pythonware.com/products/pil/) 
-(PIL) is needed for GIF support. PNG and JPG support is built-in and doesn't 
-require any external dependency. For Python 3, 
+(PIL) is needed for GIF/TIFF/JPEG2000 support. For Python 3, 
 [Pillow - The friendly PIL fork](https://github.com/python-pillow/Pillow) is 
 supported.
 
 Documentation:
 --------------
-[![Documentation Status](https://readthedocs.org/projects/pyfpdf/badge/?version=latest)](http://pyfpdf.rtfd.org)
-
- * [Read the Docs](http://pyfpdf.readthedocs.org/en/latest/)
- * [FAQ](docs/FAQ.md)
- * [Tutorial](docs/Tutorial.md) (Spanish translation available)
- * [Reference Manual](docs/ReferenceManual.md)
-
-For further information, see the project site:
-https://github.com/reingart/pyfpdf or the old Google Code project page
-https://code.google.com/p/pyfpdf/.
+See [https://github.com/reingart/pyfpdf](https://github.com/reingart/pyfpdf).
