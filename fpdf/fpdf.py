@@ -2,9 +2,9 @@
 # -*- coding: latin-1 -*-
 # ****************************************************************************
 # * Software: FPDF for python                                                *
-# * Version:  1.7.1                                                          *
+# * Version:  1.7.2                                                          *
 # * Date:     2010-09-10                                                     *
-# * Last update: 2012-08-16                                                  *
+# * Last update: 2018-08-30                                                  *
 # * License:  LGPL v3.0                                                      *
 # *                                                                          *
 # * Original Author (PHP):  Olivier PLATHEY 2004-12-31                       *
@@ -19,7 +19,7 @@ from datetime import datetime
 from functools import wraps
 import math
 import errno
-import os, sys, zlib, struct, re, tempfile, struct
+import os, sys, zlib, struct, re, tempfile, struct, io, base64
 
 from .ttfonts import TTFontFile
 from .fonts import fpdf_charwidths
@@ -988,44 +988,48 @@ class FPDF(object):
             self.cell(l/1000.0*self.font_size,h,substr(s,j),0,0,'',0,link)
 
     @check_page
-    def image(self, name, x=None, y=None, w=0,h=0,type='',link='', is_mask=False, mask_image=None):
+    def image(self, name, x=None, y=None, w=0,h=0,type='',link='', is_mask=False, mask_image=None, contents=None):
         "Put an image on the page"
         if not name in self.images:
             #First use of image, get info
-            if(type==''):
-                pos=name.rfind('.')
-                if(not pos):
-                    self.error('image file has no extension and no type was specified: '+name)
-                type=substr(name,pos+1)
-            type=type.lower()
-            if(type=='jpg' or type=='jpeg'):
-                info=self._parsejpg(name)
-            elif(type=='png'):
-                info=self._parsepng(name)
-            else:
-                #Allow for additional formats
-                #maybe the image is not showing the correct extension,
-                #but the header is OK,
-                succeed_parsing = False
-                #try all the parsing functions
-                parsing_functions = [self._parsejpg,self._parsepng,self._parsegif]
-                for pf in parsing_functions:
+            if type in ['', None] and contents:
+                # Contents in memory, try to derive type from data
+                try: type = {'GIF':          'gif',
+                             'II*':          'tif',
+                             'MM\0':         'tif',
+                             '\xff\xd8\xff': 'jpg',
+                             '\x89PN':       'png'}[contents[:3]]
+                except: pass
+            elif type in ['', None]:
+                type = name.split('.')[-1] if '.' in name else None
+                if not type: self.error('image file has no extension and no type was specified: '+name)
+            type = type.lower()
+            parsing_functions = {'jpg':  self._parsejpg,
+                                 'jpeg': self._parsejpg,
+                                 'png':  self._parsepng,
+                                 'gif':  self._parsePIL,
+                                 'tif':  self._parsePIL,
+                                 'tiff': self._parsePIL,
+                                 'jp2':  self._parsePIL}
+            try:
+                # Try correct parser for known types, call _parseTYPE otherwise
+                f = io.BytesIO(contents) if contents else None
+                info = parsing_functions.get(type, None)(name, f=f)
+                if not info: getattr(self, '_parse'+type)
+            except:
+                # _parseTYPE not implemented or parsing failed (ext mismatch)
+                info = None
+            if not info:
+                # Maybe the image is not showing the correct extension,
+                # but the header is OK, try all the parsing functions
+                for pf in set(parsing_functions.values()):
                     try:
-                        info = pf(name)
-                        succeed_parsing = True
-                        break;
+                        f = io.BytesIO(contents) if contents else None
+                        info = pf(name, f=f)
+                        break
                     except:
-                        pass
-                #last resource
-                if not succeed_parsing:
-                    mtd='_parse'+type
-                    if not hasattr(self,mtd):
-                        self.error('Unsupported image type: '+type)
-                    info=getattr(self, mtd)(name)
-                mtd='_parse'+type
-                if not hasattr(self,mtd):
-                    self.error('Unsupported image type: '+type)
-                info=getattr(self, mtd)(name)
+                        if f: f.close() # in case parser forgot
+            if not info: self.error('Unsupported image type: ' + type)
             info['i']=len(self.images)+1
             # is_mask and mask_image
             if is_mask and info['cs'] != 'DeviceGray':
@@ -1772,22 +1776,31 @@ class FPDF(object):
         return sprintf('%.2f %.2f %.2f %.2f re f',x*self.k,(self.h-(y-up/1000.0*self.font_size))*self.k,w*self.k,-ut/1000.0*self.font_size_pt)
 
     def load_resource(self, reason, filename):
-        "Load external file"
+        "Load external file, URL or data URI"
         # by default loading from network is allowed for all images
         if reason == "image":
-            if filename.startswith("http://") or filename.startswith("https://"):
-                f = BytesIO(urlopen(filename).read())
-            else:
-                f = open(filename, "rb")
-            return f
+            try:
+                if filename.startswith("http://") or filename.startswith("https://"):
+                    f = BytesIO(urlopen(filename).read())
+                elif filename.startswith("data:") and not os.path.isfile(filename):
+                    # In theory, data:image/jpeg;base64, is a valid path on certain
+                    # systems and must not be interpreted as an URI in those cases
+                    f = fname.split(';base64,')[1]
+                    f = base64.b64decode(f)
+                    f = io.BytesIO(f)
+                else:
+                    f = open(filename, "rb")
+                return f
+            except:
+                self.error("Failed to load resource \"%s\"" % filename)
         else:
             self.error("Unknown resource loading reason \"%s\"" % reason)
 
-    def _parsejpg(self, filename):
+    def _parsejpg(self, filename, f = None):
         # Extract info from a JPEG file
-        f = None
+        #f = None
         try:
-            f = self.load_resource("image", filename)
+            if not f: f = self.load_resource("image", filename)
             while True:
                 markerHigh, markerLow = struct.unpack('BB', f.read(2))
                 if markerHigh != 0xFF or markerLow < 0xC0:
@@ -1819,30 +1832,28 @@ class FPDF(object):
             data = f.read()
         return {'w':width,'h':height,'cs':colspace,'bpc':bpc,'f':'DCTDecode','data':data}
 
-    def _parsegif(self, filename):
-        # Extract info from a GIF file (via PNG conversion)
+    def _parsePIL(self, filename, f = None):
+        # Extract info from a GIF/TIFF/JPEG2000 file (via PNG conversion)
         if Image is None:
-            self.error('PIL is required for GIF support')
+            self.error('PIL is required for this format')
         try:
-            im = Image.open(filename)
+            im = Image.open(f) if f else Image.open(filename)
         except Exception:
             self.error('Missing or incorrect image file: %s. error: %s' % (filename, str(exception())))
         else:
-            # Use temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as \
-                    f:
-                tmp = f.name
-            if "transparency" in im.info:
-                im.save(tmp, transparency = im.info['transparency'])
-            else:
-                im.save(tmp)
-            info = self._parsepng(tmp)
-            os.unlink(tmp)
+            # Convert to PNG in memory
+            with io.BytesIO() as o:
+                if "transparency" in im.info:
+                    im.save(o, 'png', transparency = im.info['transparency'])
+                else:
+                    im.save(o, 'png')
+                o.seek(0)
+                info = self._parsepng(filename, f=o)
         return info
 
-    def _parsepng(self, filename):
+    def _parsepng(self, filename, f = None):
         #Extract info from a PNG file
-        f = self.load_resource("image", filename)
+        if not f: f = self.load_resource("image", filename)
         #Check signature
         magic = f.read(8).decode("latin1")
         signature = '\x89'+'PNG'+'\r'+'\n'+'\x1a'+'\n'
